@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autoware Docker Image Architecture</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8f9fc;
+      --surface: #ffffff;
+      --border: #e2e6ef;
+      --border-hover: #c9cfdc;
+      --text: #1a1f2e;
+      --text-muted: #5c6478;
+      --text-dim: #9aa1b3;
+      --accent-blue: #2563eb;
+      --accent-blue-light: #eff4ff;
+      --accent-blue-border: #bfdbfe;
+      --accent-green: #059669;
+      --accent-green-light: #ecfdf5;
+      --accent-green-border: #a7f3d0;
+      --accent-red: #dc2626;
+      --accent-red-light: #fef2f2;
+      --accent-red-border: #fecaca;
+      --accent-amber: #d97706;
+      --accent-amber-light: #fffbeb;
+      --accent-amber-border: #fde68a;
+      --accent-purple: #7c3aed;
+      --accent-purple-light: #f5f3ff;
+      --accent-purple-border: #ddd6fe;
+      --accent-cyan: #0891b2;
+      --accent-cyan-light: #ecfeff;
+      --accent-cyan-border: #a5f3fc;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+      --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+      --row-gap: 60px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.025) 1px, transparent 0);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .ambient {
+      position: fixed;
+      width: 700px;
+      height: 700px;
+      border-radius: 50%;
+      filter: blur(180px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .ambient-1 {
+      top: -300px;
+      left: -200px;
+      background: #93c5fd;
+      opacity: 0.12;
+    }
+
+    .ambient-2 {
+      bottom: -300px;
+      right: -200px;
+      background: #6ee7b7;
+      opacity: 0.12;
+    }
+
+    .ambient-3 {
+      top: 35%;
+      left: 55%;
+      background: #fca5a5;
+      opacity: 0.07;
+    }
+
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 60px 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 72px;
+      animation: fadeUp 0.8s ease-out;
+    }
+
+    .header .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 18px;
+      border-radius: 100px;
+      background: var(--accent-blue-light);
+      border: 1px solid var(--accent-blue-border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--accent-blue);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+      font-weight: 600;
+    }
+
+    .badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      animation: pulse 2s infinite;
+    }
+
+    .header h1 {
+      font-size: clamp(36px, 5vw, 60px);
+      font-weight: 800;
+      letter-spacing: -2.5px;
+      line-height: 1.1;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .header p {
+      font-size: 18px;
+      color: var(--text-muted);
+      font-weight: 400;
+      max-width: 580px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 28px;
+      margin-bottom: 56px;
+      flex-wrap: wrap;
+      animation: fadeUp 0.8s ease-out 0.15s both;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+    }
+
+    .legend-dot.ext {
+      background: #94a3b8;
+    }
+
+    .legend-dot.build {
+      background: var(--accent-blue);
+    }
+
+    .legend-dot.runtime {
+      background: var(--accent-green);
+    }
+
+    .legend-dot.cuda {
+      background: var(--accent-red);
+    }
+
+    .legend-line {
+      width: 24px;
+      height: 0;
+      border-top: 2px dashed var(--accent-purple);
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .section-label h2 {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    .flow-container {
+      position: relative;
+    }
+
+    .arrow-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      overflow: visible;
+    }
+
+    .flow-row {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: var(--row-gap);
+      position: relative;
+      z-index: 1;
+    }
+
+    .flow-row:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Cards */
+    .card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+      cursor: default;
+      animation: fadeUp 0.5s ease-out both;
+      box-shadow: var(--shadow-sm);
+      width: 100%;
+      max-width: 420px;
+      min-width: 280px;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      border-radius: 14px 14px 0 0;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--border-hover);
+      z-index: 3;
+    }
+
+    .card.external::before {
+      background: linear-gradient(90deg, #94a3b8, #cbd5e1);
+    }
+
+    .card.build::before {
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    }
+
+    .card.build:hover {
+      border-color: var(--accent-blue-border);
+    }
+
+    .card.runtime::before {
+      background: linear-gradient(90deg, #059669, #34d399);
+    }
+
+    .card.runtime:hover {
+      border-color: var(--accent-green-border);
+    }
+
+    .card.cuda::before {
+      background: linear-gradient(90deg, #dc2626, #f87171);
+    }
+
+    .card.cuda:hover {
+      border-color: var(--accent-red-border);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .card-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.3px;
+      line-height: 1.3;
+    }
+
+    .card-type {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 100px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .card.external .card-type {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .card.build .card-type {
+      background: var(--accent-blue-light);
+      color: var(--accent-blue);
+    }
+
+    .card.runtime .card-type {
+      background: var(--accent-green-light);
+      color: var(--accent-green);
+    }
+
+    .card.cuda .card-type {
+      background: var(--accent-red-light);
+      color: var(--accent-red);
+    }
+
+    .card-from {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+
+    .card-from span {
+      color: var(--accent-purple);
+      font-weight: 600;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 5px;
+      background: var(--accent-blue-light);
+      border: 1px solid var(--accent-blue-border);
+      color: var(--accent-blue);
+    }
+
+    .tag.green {
+      background: var(--accent-green-light);
+      border-color: var(--accent-green-border);
+      color: var(--accent-green);
+    }
+
+    .tag.red {
+      background: var(--accent-red-light);
+      border-color: var(--accent-red-border);
+      color: var(--accent-red);
+    }
+
+    .tag.amber {
+      background: var(--accent-amber-light);
+      border-color: var(--accent-amber-border);
+      color: var(--accent-amber);
+    }
+
+    .tag.cyan {
+      background: var(--accent-cyan-light);
+      border-color: var(--accent-cyan-border);
+      color: var(--accent-cyan);
+    }
+
+    .tag.purple {
+      background: var(--accent-purple-light);
+      border-color: var(--accent-purple-border);
+      color: var(--accent-purple);
+    }
+
+    .copy-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      padding: 5px 10px;
+      border-radius: 7px;
+      background: var(--accent-purple-light);
+      border: 1px dashed var(--accent-purple-border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--accent-purple);
+    }
+
+    .copy-badge svg {
+      flex-shrink: 0;
+    }
+
+    .card-relationship {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .single-row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .flow-spacer {
+      display: flex;
+      justify-content: center;
+      padding: 8px 0;
+    }
+
+    .connector-zone {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px 0;
+    }
+
+    .connector-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .connector-arrow .label {
+      padding: 5px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .chain-section {
+      margin-bottom: 24px;
+    }
+
+    /* Align universe-devel-cuda under universe-dependencies-cuda */
+    .flow-row.align-left {
+      justify-content: flex-start;
+      padding-left: calc(50% - 220px - 12px - 220px);
+    }
+
+    @media (max-width: 960px) {
+      .flow-row {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .flow-row.align-left {
+        padding-left: 0;
+        justify-content: center;
+      }
+
+      .card {
+        max-width: 100% !important;
+      }
+
+      .arrow-svg {
+        display: none;
+      }
+
+      .container {
+        padding: 30px 16px;
+      }
+
+      :root {
+        --row-gap: 40px;
+      }
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.35;
+      }
+    }
+
+    .d1 {
+      animation-delay: 0.05s;
+    }
+
+    .d2 {
+      animation-delay: 0.1s;
+    }
+
+    .d3 {
+      animation-delay: 0.15s;
+    }
+
+    .d4 {
+      animation-delay: 0.2s;
+    }
+
+    .d5 {
+      animation-delay: 0.25s;
+    }
+
+    .d6 {
+      animation-delay: 0.3s;
+    }
+
+    .d7 {
+      animation-delay: 0.35s;
+    }
+
+    .d8 {
+      animation-delay: 0.4s;
+    }
+
+    .d9 {
+      animation-delay: 0.45s;
+    }
+
+    .d10 {
+      animation-delay: 0.5s;
+    }
+
+    .d11 {
+      animation-delay: 0.55s;
+    }
+  </style>
+</head>
+<body>
+
+<div class="ambient ambient-1"></div>
+<div class="ambient ambient-2"></div>
+<div class="ambient ambient-3"></div>
+
+<div class="container">
+  <header class="header">
+    <div class="badge"><span class="dot"></span> Docker Architecture</div>
+    <h1>Autoware Image Layers</h1>
+    <p>A visual map of the Docker build chain, runtime chain, and multi-stage copy relationships.</p>
+  </header>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot ext"></div>
+      External Base
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot build"></div>
+      Build Chain
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot runtime"></div>
+      Runtime Chain
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot cuda"></div>
+      CUDA Variant
+    </div>
+    <div class="legend-item">
+      <div class="legend-line"></div>
+      Multi-stage COPY
+    </div>
+  </div>
+
+  <!-- ORIGIN -->
+  <div class="single-row">
+    <div class="card external" style="max-width: 440px;">
+      <div class="card-header">
+        <div class="card-name">ros:${ROS_DISTRO}-ros-base</div>
+        <div class="card-type">External</div>
+      </div>
+      <div class="card-desc">The official ROS 2 base image. Starting point for all Autoware images.</div>
+      <div class="card-tags">
+        <span class="tag amber">ros2</span>
+        <span class="tag amber">official</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-spacer">
+    <svg width="2" height="36">
+      <line x1="1" y1="0" x2="1" y2="36" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="4 4"/>
+    </svg>
+  </div>
+
+  <!-- BASE -->
+  <div class="single-row" style="margin-bottom: 4px;">
+    <div class="card build d1" style="max-width: 500px;" id="card-base">
+      <div class="card-header">
+        <div class="card-name">base</div>
+        <div class="card-type">Build</div>
+      </div>
+      <div class="card-from">FROM <span>ros:${ROS_DISTRO}-ros-base</span></div>
+      <div class="card-desc">Foundation layer with essential tooling, user setup, and middleware configuration.</div>
+      <div class="card-tags">
+        <span class="tag">sudo</span>
+        <span class="tag">pipx</span>
+        <span class="tag">ansible</span>
+        <span class="tag cyan">rmw</span>
+        <span class="tag purple">user:aw</span>
+        <span class="tag purple">gosu</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector-zone">
+    <div class="connector-arrow">
+      <svg width="200" height="50" viewBox="0 0 200 50">
+        <path d="M100 0 L100 15 L30 45" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+        <path d="M100 0 L100 15 L170 45" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4 4"/>
+        <circle cx="30" cy="45" r="3" fill="var(--accent-blue)" opacity="0.6"/>
+        <circle cx="170" cy="45" r="3" fill="var(--accent-green)" opacity="0.6"/>
+      </svg>
+      <div class="label">splits into Build &amp; Runtime</div>
+    </div>
+  </div>
+
+  <!-- ===== BUILD CHAIN ===== -->
+  <section class="chain-section">
+    <div class="section-label"><h2>Build Chain</h2></div>
+    <div class="flow-container" id="build-flow">
+      <svg class="arrow-svg" id="build-arrows"></svg>
+
+      <!-- Row 1: core-dependencies -->
+      <div class="flow-row">
+        <div class="card build d2" id="b-core-deps">
+          <div class="card-header">
+            <div class="card-name">core-dependencies</div>
+            <div class="card-type">Build</div>
+          </div>
+          <div class="card-from">FROM <span>base</span></div>
+          <div class="card-desc">Installs and builds all src/core/ dependencies (except autoware_core). Used for
+            autoware_core CI.
+          </div>
+          <div class="card-tags">
+            <span class="tag">ccache</span>
+            <span class="tag cyan">rosdep</span>
+            <span class="tag green">build src/core/</span>
+            <span class="tag purple">/opt/autoware</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: core-devel -->
+      <div class="flow-row">
+        <div class="card build d3" id="b-core-devel">
+          <div class="card-header">
+            <div class="card-name">core-devel</div>
+            <div class="card-type">Build</div>
+          </div>
+          <div class="card-from">FROM <span>core-dependencies</span></div>
+          <div class="card-desc">Builds autoware_core on top of its dependencies. Developers can mount and develop
+            against this. Can be used by the CI workflows that depend on autoware_core.
+          </div>
+          <div class="card-tags">
+            <span class="tag cyan">rosdep autoware_core</span>
+            <span class="tag green">build autoware_core</span>
+            <span class="tag purple">/opt/autoware</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: universe-dependencies -->
+      <div class="flow-row">
+        <div class="card build d4" id="b-uni-deps">
+          <div class="card-header">
+            <div class="card-name">universe-dependencies</div>
+            <div class="card-type">Build</div>
+          </div>
+          <div class="card-from">FROM <span>core-devel</span></div>
+          <div class="card-desc">Installs ansible roles and rosdep deps for all universe packages from autoware.repos.
+            To be used by autoware_universe CI.
+          </div>
+          <div class="card-tags">
+            <span class="tag">ansible roles</span>
+            <span class="tag cyan">rosdep universe</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: fork — universe-dependencies-cuda | universe-devel -->
+      <div class="flow-row">
+        <div class="card cuda d5" id="b-uni-deps-cuda">
+          <div class="card-header">
+            <div class="card-name">universe-dependencies-cuda</div>
+            <div class="card-type">CUDA</div>
+          </div>
+          <div class="card-from">FROM <span>universe-dependencies</span></div>
+          <div class="card-desc">Adds CUDA development libraries for GPU-accelerated builds. To be used by
+            autoware_universe CI.
+          </div>
+          <div class="card-tags">
+            <span class="tag red">CUDA dev</span>
+          </div>
+        </div>
+
+        <div class="card build d5" id="b-uni-devel">
+          <div class="card-header">
+            <div class="card-name">universe-devel</div>
+            <div class="card-type">Build</div>
+          </div>
+          <div class="card-from">FROM <span>universe-dependencies</span></div>
+          <div class="card-desc">Full build of autoware.repos installed into /opt/autoware.</div>
+          <div class="card-tags">
+            <span class="tag green">build autoware.repos</span>
+            <span class="tag purple">/opt/autoware</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 5: universe-devel-cuda (aligned under cuda side) -->
+      <div class="flow-row align-left">
+        <div class="card cuda d6" id="b-uni-devel-cuda">
+          <div class="card-header">
+            <div class="card-name">universe-devel-cuda</div>
+            <div class="card-type">CUDA</div>
+          </div>
+          <div class="card-from">FROM <span>universe-dependencies-cuda</span></div>
+          <div class="card-desc">Full build of autoware.repos with CUDA support.</div>
+          <div class="card-tags">
+            <span class="tag green">build autoware.repos</span>
+            <span class="tag red">CUDA</span>
+            <span class="tag purple">/opt/autoware</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COPY ZONE -->
+  <div class="connector-zone" style="padding: 32px 0;">
+    <div class="connector-arrow">
+      <svg width="300" height="50" viewBox="0 0 300 50">
+        <path d="M60 0 L60 20 Q60 35 75 35 L140 35 L140 50" stroke="#a78bfa" stroke-width="1.5" fill="none"
+              stroke-dasharray="5 3"/>
+        <path d="M150 0 L150 50" stroke="#a78bfa" stroke-width="1.5" fill="none" stroke-dasharray="5 3"/>
+        <path d="M240 0 L240 20 Q240 35 225 35 L160 35 L160 50" stroke="#a78bfa" stroke-width="1.5" fill="none"
+              stroke-dasharray="5 3"/>
+      </svg>
+      <div class="label" style="border-color: var(--accent-purple-border); color: var(--accent-purple);">COPY
+        /opt/autoware → Runtime
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RUNTIME CHAIN ===== -->
+  <section class="chain-section">
+    <div class="section-label"><h2>Runtime Chain</h2></div>
+    <div class="flow-container" id="runtime-flow">
+      <svg class="arrow-svg" id="runtime-arrows"></svg>
+
+      <!-- Row 1: core -->
+      <div class="flow-row">
+        <div class="card runtime d8" id="r-core">
+          <div class="card-header">
+            <div class="card-name">core</div>
+            <div class="card-type">Runtime</div>
+          </div>
+          <div class="card-from">FROM <span>base</span></div>
+          <div class="card-desc">Lightweight runtime for core packages. Exec-time rosdep deps only.</div>
+          <div class="card-tags">
+            <span class="tag green">rosdep exec deps</span>
+            <span class="tag green">src/core/</span>
+          </div>
+          <div class="card-relationship">
+            <div class="copy-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              COPY from core-devel
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: universe-runtime-dependencies -->
+      <div class="flow-row">
+        <div class="card runtime d9" id="r-uni-rt-deps">
+          <div class="card-header">
+            <div class="card-name">universe-runtime-dependencies</div>
+            <div class="card-type">Runtime</div>
+          </div>
+          <div class="card-from">FROM <span>core</span></div>
+          <div class="card-desc">Runtime ansible deps and rosdep exec deps from autoware.repos.</div>
+          <div class="card-tags">
+            <span class="tag green">ansible runtime</span>
+            <span class="tag green">rosdep exec</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: universe + universe-cuda -->
+      <div class="flow-row">
+        <div class="card runtime d10" id="r-universe">
+          <div class="card-header">
+            <div class="card-name">universe</div>
+            <div class="card-type">Runtime</div>
+          </div>
+          <div class="card-from">FROM <span>universe-runtime-deps</span></div>
+          <div class="card-desc">Final runtime image for Autoware universe. Ready to deploy.</div>
+          <div class="card-tags">
+            <span class="tag green">production</span>
+            <span class="tag green">runtime</span>
+          </div>
+          <div class="card-relationship">
+            <div class="copy-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              COPY from universe-devel
+            </div>
+          </div>
+        </div>
+
+        <div class="card cuda d11" id="r-universe-cuda">
+          <div class="card-header">
+            <div class="card-name">universe-cuda</div>
+            <div class="card-type">CUDA Runtime</div>
+          </div>
+          <div class="card-from">FROM <span>universe-runtime-deps</span></div>
+          <div class="card-desc">GPU-accelerated runtime with CUDA libraries and full Autoware build.</div>
+          <div class="card-tags">
+            <span class="tag red">CUDA runtime</span>
+            <span class="tag green">production</span>
+          </div>
+          <div class="card-relationship">
+            <div class="copy-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              COPY from universe-devel-cuda
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="text-align: center; padding-top: 40px; border-top: 1px solid var(--border); margin-top: 20px;">
+    <p style="font-size: 13px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;">
+      autowarefoundation/autoware · Docker Image Architecture
+    </p>
+  </footer>
+</div>
+
+<script>
+  // ─── Colors ───────────────────────────────────────────────────────────────────
+  const COLORS = {
+    build: '#93b4f4',
+    cuda: '#fca5a5',
+    runtime: '#6ee7b7',
+  };
+
+  // ─── Arrow definitions ────────────────────────────────────────────────────────
+  const BUILD_ARROWS = [
+    {from: 'b-core-deps', to: 'b-core-devel', color: COLORS.build},
+    {from: 'b-core-devel', to: 'b-uni-deps', color: COLORS.build},
+    {from: 'b-uni-deps', to: 'b-uni-deps-cuda', color: COLORS.cuda},
+    {from: 'b-uni-deps', to: 'b-uni-devel', color: COLORS.build},
+    {from: 'b-uni-deps-cuda', to: 'b-uni-devel-cuda', color: COLORS.cuda},
+  ];
+
+  const RUNTIME_ARROWS = [
+    {from: 'r-core', to: 'r-uni-rt-deps', color: COLORS.runtime},
+    {from: 'r-uni-rt-deps', to: 'r-universe', color: COLORS.runtime},
+    {from: 'r-uni-rt-deps', to: 'r-universe-cuda', color: COLORS.cuda},
+  ];
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+  /** Card bounds relative to its flow-container. */
+  function getCardRect(card, container) {
+    const c = card.getBoundingClientRect();
+    const p = container.getBoundingClientRect();
+    return {
+      top: c.top - p.top,
+      bottom: c.bottom - p.top,
+      centerX: c.left - p.left + c.width / 2,
+    };
+  }
+
+  /**
+   * Creates SVG <defs> with one arrowhead marker per unique color.
+   * The marker is a right-pointing filled triangle; orient='auto' rotates it
+   * to follow the path direction. refX='10' places the tip at the path endpoint.
+   */
+  function createMarkers(svg, arrows) {
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+    const seen = new Set();
+    for (const {color} of arrows) {
+      if (seen.has(color)) continue;
+      seen.add(color);
+
+      const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+      marker.setAttribute('id', markerId(color));
+      marker.setAttribute('viewBox', '0 0 10 10');
+      marker.setAttribute('refX', '10');   // tip aligns to path endpoint
+      marker.setAttribute('refY', '5');    // vertically centered
+      marker.setAttribute('markerUnits', 'userSpaceOnUse');
+      marker.setAttribute('markerWidth', '10');
+      marker.setAttribute('markerHeight', '10');
+      marker.setAttribute('orient', 'auto');
+
+      const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      shape.setAttribute('d', 'M 0 1 L 10 5 L 0 9 Z');
+      shape.setAttribute('fill', color);
+      marker.appendChild(shape);
+      defs.appendChild(marker);
+    }
+
+    svg.appendChild(defs);
+  }
+
+  /** Stable marker id derived from color string. */
+  function markerId(color) {
+    return 'mk-' + color.replace('#', '');
+  }
+
+  /** Draws a smooth cubic Bézier arrow from the bottom-center of fromEl
+   *  to the top-center of toEl, both measured relative to container. */
+  function drawArrow(svg, fromEl, toEl, container, color) {
+    const from = getCardRect(fromEl, container);
+    const to = getCardRect(toEl, container);
+
+    const x1 = from.centerX, y1 = from.bottom;
+    const x2 = to.centerX, y2 = to.top - 0;
+    const dy = y2 - y1;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const arrowHeadApproach = 10; // px of straight vertical approach before endpoint
+
+    path.setAttribute('d', `
+  M ${x1},${y1}
+  C ${x1},${y1 + dy * 0.5}
+    ${x2},${y2 - dy * 0.5}
+    ${x2},${y2 - arrowHeadApproach}
+  L ${x2},${y2}
+`);
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('marker-end', `url(#${markerId(color)})`);
+    svg.appendChild(path);
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
+
+  function renderSection(svgId, containerId, arrows) {
+    const svg = document.getElementById(svgId);
+    const container = document.getElementById(containerId);
+    svg.innerHTML = '';
+
+    createMarkers(svg, arrows);
+
+    for (const {from, to, color} of arrows) {
+      drawArrow(svg, document.getElementById(from), document.getElementById(to), container, color);
+    }
+  }
+
+  function drawAllArrows() {
+    renderSection('build-arrows', 'build-flow', BUILD_ARROWS);
+    renderSection('runtime-arrows', 'runtime-flow', RUNTIME_ARROWS);
+  }
+
+  // Delay until all card entrance animations have settled (max delay 0.55s + 0.5s duration)
+  window.addEventListener('load', () => setTimeout(drawAllArrows, 1100));
+  window.addEventListener('resize', drawAllArrows);
+</script>
+
+</body>
+</html>
